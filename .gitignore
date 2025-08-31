@@ -1,0 +1,48 @@
+# Python dependencies
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.whl
+*.egg-info/
+*.eggs/
+Pipfile
+Pipfile.lock
+poetry.lock
+
+# Virtual environments
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# GenAI-related files
+*.ckpt
+*.pth
+*.h5
+*.onnx
+*.tflite
+*.pt
+
+# Cache files
+.cache/
+*.cache
+
+# Pytest
+.pytest_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+*.cover
+
+# Miscellaneous
+*.bak
+*.swp
+*.tmp
+
+.env
