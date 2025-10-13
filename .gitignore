@@ -46,3 +46,7 @@ htmlcov/
 *.tmp
 
 .env
+
+archive/
+
+.vscode/
