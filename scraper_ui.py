@@ -1,8 +1,10 @@
+
 import streamlit as st
-#from data_scrapper.scrape_data import scrape_flipkart_products, save_to_csv
-#from data_ingestion.ingestion_pipeline import DataIngestion
+from prod_assistant.etl.data_scraper import FlipkartScraper
+from prod_assistant.etl.data_ingestion import DataIngestion
 import os
 
+flipkart_scraper = FlipkartScraper()
 output_path = "data/product_reviews.csv"
 st.title("Product Review Scraper")
 
@@ -38,20 +40,17 @@ if st.button("Start Scraping"):
         final_data = []
         for query in product_inputs:
             st.write(f"Searching for: {query}")
-            results = scrape_flipkart_products(query, max_products=max_products, review_count=review_count) #type: ignore
+            results = flipkart_scraper.scrape_flipkart_products(query, max_products=max_products, review_count=review_count)
             final_data.extend(results)
 
         unique_products = {}
         for row in final_data:
             if row[1] not in unique_products:
                 unique_products[row[1]] = row
-        # final_data = list(unique_products.values())
 
-        # save_to_csv(final_data, output_path)
-        
         final_data = list(unique_products.values())
         st.session_state["scraped_data"] = final_data  # store in session
-        save_to_csv(final_data, output_path)    #type: ignore
+        flipkart_scraper.save_to_csv(final_data, output_path)
         st.success("Data saved to `data/product_reviews.csv`")
         st.download_button("Download CSV", data=open(output_path, "rb"), file_name="product_reviews.csv")
 
@@ -59,7 +58,7 @@ if st.button("Start Scraping"):
 if "scraped_data" in st.session_state and st.button("🧠 Store in Vector DB (AstraDB)"):
     with st.spinner("Initializing ingestion pipeline..."):
         try:
-            ingestion = DataIngestion() #type: ignore
+            ingestion = DataIngestion()
             st.info("Running ingestion pipeline...")
             ingestion.run_pipeline()
             st.success("Data successfully ingested to AstraDB!")
