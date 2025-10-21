@@ -1,4 +1,7 @@
-import csv, time, re, os
+import csv
+import time
+import re
+import os
 from bs4 import BeautifulSoup
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
@@ -8,22 +11,23 @@ from selenium.webdriver.common.action_chains import ActionChains
 class FlipkartScraper:
     def __init__(self, output_dir="data"):
         self.output_dir = output_dir
-        os.makedirs(self.output_dir, exist_ok=True)      
+        os.makedirs(self.output_dir, exist_ok=True)
 
-    def get_top_reviews(self, product_url, count = 2):
+    def get_top_reviews(self,product_url,count=2):
         options = uc.ChromeOptions()
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-blink-features=AutomationControlled")
-        driver = uc.Chrome(options=options, use_subprocess=True)
+        driver = uc.Chrome(options=options,use_subprocess=True)
 
         if not product_url.startswith("http"):
-            return "No reviews found"
-        
+            driver.quit()
+            return []
+
         try:
             driver.get(product_url)
             time.sleep(4)
             try:
-                driver.find_element(By.XPATH, "\\button[contains(text(), 'X')]").click()
+                driver.find_element(By.XPATH, "//button[contains(text(), '✕')]").click()
                 time.sleep(1)
             except Exception as e:
                 print(f"Error occurred while closing popup: {e}")
@@ -32,38 +36,43 @@ class FlipkartScraper:
                 ActionChains(driver).send_keys(Keys.END).perform()
                 time.sleep(1.5)
 
-            soup = BeautifulSoup(driver.page_source, "html_parser")
+            soup = BeautifulSoup(driver.page_source, "html.parser")
             review_blocks = soup.select("div._27M-vq, div.col.EPCmJX, div._6K-7Co")
             seen = set()
             reviews = []
 
             for block in review_blocks:
-                text = block.get_text(separator=" ",strip = True)
+                text = block.get_text(separator=" ", strip=True)
                 if text and text not in seen:
                     reviews.append(text)
                     seen.add(text)
                 if len(reviews) >= count:
-                    break 
+                    break
         except Exception:
             reviews = []
 
         driver.quit()
-        return " || ".join(reviews)
-
-    def scrape_flipkart_products(self, query, max_products = 1, review_count = 2):
+        return reviews if reviews else []
+    
+    def scrape_flipkart_products(self, query, max_products=1, review_count=2):
+        """Scrape Flipkart products based on a search query.
+        Returns a list of rows, where each row is one review for a product
+        with columns: product_id, product_title, rating, total_reviews, price, top_reviews.
+        """
         options = uc.ChromeOptions()
-        driver = uc.Chrome(options=options, use_subprocess=True)
+        driver = uc.Chrome(options=options,use_subprocess=True)
         search_url = f"https://www.flipkart.com/search?q={query.replace(' ', '+')}"
         driver.get(search_url)
         time.sleep(4)
+
         try:
-            driver.find_element(By.XPATH, "\\button[contains(text(), 'X')]").click()
-            time.sleep(1)
+            driver.find_element(By.XPATH, "//button[contains(text(), '✕')]").click()
         except Exception as e:
             print(f"Error occurred while closing popup: {e}")
 
         time.sleep(2)
         products = []
+
         items = driver.find_elements(By.CSS_SELECTOR, "div[data-id]")[:max_products]
         for item in items:
             try:
@@ -83,23 +92,31 @@ class FlipkartScraper:
                 print(f"Error occurred while processing item: {e}")
                 continue
 
-            top_reviews = self.get_top_reviews(product_url=product_link, count=review_count) if "flipkart.com" in product_link else "Invalid Product URL"
-            products.append([product_id, title, rating, total_reviews, price, top_reviews])
-        
+            # Fetch reviews as a list
+            reviews_list = self.get_top_reviews(product_link, count=review_count) if "flipkart.com" in product_link else []
+
+            # Add one row per review, keeping the required column names
+            if reviews_list:
+                for review in reviews_list:
+                    products.append([product_id, title, rating, total_reviews, price, review])
+            else:
+                products.append([product_id, title, rating, total_reviews, price, "No reviews found"])
+
         driver.quit()
         return products
-
-    def save_to_csv(self, data, filename = "product_review.csv"):
+    
+    def save_to_csv(self, data, filename="product_reviews.csv"):
         if os.path.isabs(filename):
             path = filename
-        elif os.path.dirname(filename):
+        elif os.path.dirname(filename):  # filename includes subfolder like 'data/product_reviews.csv'
             path = filename
             os.makedirs(os.path.dirname(path), exist_ok=True)
         else:
+            # plain filename like 'output.csv'
             path = os.path.join(self.output_dir, filename)
 
-        with open(path, "w", newline = "", encoding = "utf-8") as f:
+        with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(["product_id", "product_title", "rating", "total_reviews", "price", "top_reviews"])
             writer.writerows(data)
-
+        
