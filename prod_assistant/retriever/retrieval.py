@@ -7,6 +7,8 @@ from langchain_core.documents import Document
 from utils.config_loader import load_config
 from utils.model_loader import ModelLoader
 from dotenv import load_dotenv
+from langchain.retrievers.document_compressors import LLMChainFilter
+from langchain.retrievers import ContextualCompressionRetriever
 
 project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
@@ -47,9 +49,20 @@ class Retriever:
 
         if not self.retriever:
             top_k = self.config["retriever"]["top_k"] if "retriever" in self.config else 3
-            retriever = self.vstore.as_retriever(search_kwargs= {"k": top_k})
+            # added mmr (maximal marginal relevance) as the retriever search  
+            mmr_retriever = self.vstore.as_retriever(
+                search_type = "mmr",
+                search_kwargs= {"k": top_k, "fetch_k": 20, "lambda_mult": 0.7, "score_threshold": 0.3}
+                )
             print("Retriever loaded successfully.")
-            return retriever
+
+            llm = self.model_loader.load_llm()
+            compressor = LLMChainFilter.from_llm(llm)
+            self.retriever = ContextualCompressionRetriever(
+                base_compressor=compressor,
+                base_retriever=mmr_retriever
+            )
+            return self.retriever
 
     def call_retriever(self, query):
         retriever = self.load_retriever()
@@ -58,7 +71,7 @@ class Retriever:
 
 if __name__ == "__main__":
     retriever_obj = Retriever()
-    user_query = "can you suggest cheap laptops?"
+    user_query = "can you suggest cheap phones?"
     results = retriever_obj.call_retriever(user_query)
 
     for idx, doc in enumerate(results, 1):
